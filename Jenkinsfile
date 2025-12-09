@@ -1,28 +1,32 @@
 pipeline {
     agent { label "Jenkins-Agent" }
     environment {
-              APP_NAME = "register-app-pipeline"
+        APP_NAME = "register-app-pipeline"
+        DOCKER_USER = "mozubayer"
     }
 
     stages {
         stage("Cleanup Workspace") {
-            steps {
-                cleanWs()
-            }
+            steps { cleanWs() }
         }
 
         stage("Checkout from SCM") {
-               steps {
-                   git branch: 'main', credentialsId: 'github', url: 'https://github.com/yyz18/gitops-register-app'
-               }
+            steps {
+                git branch: 'main', credentialsId: 'github',
+                    url: 'https://github.com/yyz18/gitops-register-app'
+            }
         }
 
-       stage("Update the Deployment Tags") {
+        stage("Update Image Tag") {
             steps {
                 sh """
-                   cat deployment.yaml
-                   sed -i 's/${APP_NAME}.*/${APP_NAME}:${IMAGE_TAG}/g' deployment.yaml
-                   cat deployment.yaml
+                   echo 'Before update:'
+                   grep image deployment.yaml
+
+                   sed -i "s|image: .*/${APP_NAME}:.*|image: ${DOCKER_USER}/${APP_NAME}:${IMAGE_TAG}|g" deployment.yaml
+
+                   echo 'After update:'
+                   grep image deployment.yaml
                 """
             }
         }
@@ -32,14 +36,15 @@ pipeline {
                 sh """
                    git config --global user.name "yyz18"
                    git config --global user.email "mozubayer@gmail.com"
+
                    git add deployment.yaml
-                   git commit -m "Updated Deployment Manifest"
+                   git commit -m "Update image tag to ${IMAGE_TAG}"
                 """
-                withCredentials([gitUsernamePassword(credentialsId: 'github', gitToolName: 'Default')]) {
-                  sh "git push https://github.com/yyz18/gitops-register-app main"
+
+                withCredentials([gitUsernamePassword(credentialsId: 'github')]) {
+                    sh "git push https://\${GIT_USERNAME}:\${GIT_PASSWORD}@github.com/yyz18/gitops-register-app HEAD:main"
                 }
             }
         }
-      
     }
 }
